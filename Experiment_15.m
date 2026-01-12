@@ -55,7 +55,7 @@ dEt_dem = P_HeatPump_th_dem * 0.5;
 
 
 %% Parameters - subject of test and optimization
-PV_area=140.6;           % [m2] (power plant area)
+PV_area=190.0;           % [m2] (power plant area)
 BattCapacity=0*20;      % [kWh], Battery capacity
 HsysCapacity=1*8000;   % [kWh], Hydrogen tank capacity
 HsysInpPowerMax=7;     % [kW], max charge power (electrolyser power)
@@ -82,8 +82,8 @@ PvPower = SunPower * PV_area * PV_eff;                  % Power of power plant  
 
 %% Battery parameters
 %------------------
-BattChgEff=0.97;    % [%], charging efficiency
-BattDisEff=0.97;    % [%], discharging efficiency
+BattChgEff=0.95;    % [%], charging efficiency
+BattDisEff=0.95;    % [%], discharging efficiency
 BattFullFact=0.95;
 BattEmptyFact=0.05;
 
@@ -294,7 +294,7 @@ for i=2:n
 
     P_EL_NOM = HsysInpPowerMax;
     P_EL_E = P_EL_NOM*[0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1];
-    Eff_Electrolyser = 100*[0 0.64 0.73 0.75 0.75 0.74 0.72 0.71 0.69 0.68 0.67];
+    Eff_Electrolyser = [0 57.6 65.7 67.5 67.5 66.6 64.8 63.9 62.1 61.2 60.3];
     x_EL = P_EL_E; 
     v_EL = Eff_Electrolyser; %
 
@@ -310,7 +310,7 @@ for i=2:n
     P_H2_NOM = HsysOutPowerMax;
 
     P_FC_H2=P_H2_NOM*[0.0 0.01 0.05 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1];
-    Eff_FuelCell=[10 20 50 56 58 57.5 57 55 53 50 47 44 40];
+    Eff_FuelCell=[9 18 45 50.4 52.2 51.75 51.3 49.5 47.7 45 42.3 39.6 36];
 
     x_FC = P_FC_H2; 
     v_FC = Eff_FuelCell; 
@@ -577,7 +577,7 @@ CAPEX_r_SolarPwrPlant = 210;  %EUR/m2
 CAPEX_r_Electrolyser = 800;   %EUR/kW
 CAPEX_r_FuelCell = 800;       %EUR/kW
 CAPEX_r_HydrogenTank = 250;   %EUR/kg
-CAPEX_r_Battery = 400;        %EUR/kWh
+CAPEX_r_Battery = 400 / (0.8*0.75);  %EUR/kWh %0.8 DoD, 0.75 Degradacija, 2 - change in 10 years
 
 CAPEX_SolarPwrPlant = CAPEX_r_SolarPwrPlant * PV_area;       %EUR
 CAPEX_Electrolyser = CAPEX_r_Electrolyser * HsysInpPowerMax; %EUR
@@ -593,13 +593,26 @@ CAPEX_Total = ...
 + CAPEX_HydrogenTank...
 + CAPEX_Battery;
 
+OPEX_SolarPwrPlant = 0;
+OPEX_Electrolyser = 0.60 *  CAPEX_Electrolyser;  %EUR
+OPEX_FuelCell = 0.60 * CAPEX_FuelCell;           %EUR
+OPEX_HydrogenTank = 0;
+OPEX_Battery = (400 / (0.8*0.75)) *BattCapacity;
+
+OPEX_Total = ...
++ OPEX_SolarPwrPlant...
++ OPEX_Electrolyser...
++ OPEX_FuelCell...
++ OPEX_HydrogenTank...
++ OPEX_Battery;
+
 LifeTime=20; %years
 
-ElPrice_SolarPwrPlant=CAPEX_SolarPwrPlant/(LifeTime*ConsEnergyTotal_1*1e-3);
-ElPrice_Electrolyser=CAPEX_Electrolyser/(LifeTime*ConsEnergyTotal_1*1e-3);
-ElPrice_FuelCell=CAPEX_FuelCell/(LifeTime*ConsEnergyTotal_1*1e-3);
-ElPrice_HydrogenTank=CAPEX_HydrogenTank/(LifeTime*ConsEnergyTotal_1*1e-3);
-ElPrice_Battery=CAPEX_Battery/(LifeTime*ConsEnergyTotal_1*1e-3);
+ElPrice_SolarPwrPlant= (CAPEX_SolarPwrPlant+OPEX_SolarPwrPlant)/(LifeTime*ConsEnergyTotal_1*1e-3);
+ElPrice_Electrolyser=(CAPEX_Electrolyser+OPEX_Electrolyser)/(LifeTime*ConsEnergyTotal_1*1e-3);
+ElPrice_FuelCell=(CAPEX_FuelCell+OPEX_FuelCell)/(LifeTime*ConsEnergyTotal_1*1e-3);
+ElPrice_HydrogenTank=(CAPEX_HydrogenTank+OPEX_HydrogenTank)/(LifeTime*ConsEnergyTotal_1*1e-3);
+ElPrice_Battery=(CAPEX_Battery+OPEX_Battery)/(LifeTime*ConsEnergyTotal_1*1e-3);
 
 ElPrice_Total = ...
 + ElPrice_SolarPwrPlant...
@@ -609,7 +622,7 @@ ElPrice_Total = ...
 + ElPrice_Battery;
 
 
-YearPrice = CAPEX_Total / LifeTime; %years
+YearPrice = (CAPEX_Total+OPEX_Total) / LifeTime; %years
 
 %% Total thermal energy
 Et_total = dEt_fc + dEt_hp;
@@ -771,7 +784,7 @@ plot(Time/24, H2_MassInTank, 'k');
 xlabel('Time [day]');
 ylabel('H2 mass [kg]');
 xlim([tps tpe]);
-ylim([ymin2 ymax2]);
+%ylim([ymin2 ymax2]);
 title(['H2 mass over year']);
 
 subplot(3,2,5);
@@ -1262,7 +1275,7 @@ ylabel('Hour 0...23,5');
 zlabel('Pv power [kW]');
 xlim([1 365]);
 ylim([0 24]);
-zlim([0 15]);
+zlim([0 20]);
 title('PV power as a function of hour and day');
 
 
@@ -1276,7 +1289,7 @@ xlabel('time [h]');
 ylabel('Consumption power [kW]');
 zlabel('Pv power [kW]');
 xlim([1 24]);
-ylim([0 15]);
+ylim([0 20]);
 title('PV power - WINTER and SUMMER');
 legend('WINTER','SUMMER')
 
@@ -1387,7 +1400,7 @@ grid on;
 % grid on;
 
 figure(26);
-plot(Days, daily_coverage_fc, 'b');
+bar(Days, daily_coverage_fc, 'b');
 xlabel('Days');
 ylabel('Daily coverage FC [%]');
 title('Daily coverage with thermal energy of Fuel Cell');
@@ -1529,6 +1542,14 @@ disp(['CAPEX - Hydrogen tank (EUR):                   ', num2str(CAPEX_HydrogenT
 disp(['CAPEX - Battery (EUR):                         ', num2str(CAPEX_Battery)]);
 disp(['CAPEX - TOTAL (EUR):                           ', num2str(CAPEX_Total)]);
 disp(' ');
+disp('OPEX OF THE SYSTEM');
+disp(['OPEX - Solar power plant (EUR):               ', num2str(OPEX_SolarPwrPlant)]);
+disp(['OPEX - Electrolyser (EUR):                    ', num2str(OPEX_Electrolyser)]);
+disp(['OPEX - Fuel cell (EUR):                       ', num2str(OPEX_FuelCell)]);
+disp(['OPEX - Hydrogen tank (EUR):                   ', num2str(OPEX_HydrogenTank)]);
+disp(['OPEX - Battery (EUR):                         ', num2str(OPEX_Battery)]);
+disp(['OPEX - TOTAL (EUR):                           ', num2str(OPEX_Total)]);
+disp(' ');
 disp('ELECTRIC ENERGY PRICE');
 disp(['Electric energy price Sol. pwr. pl. (EUR/MWh): ', num2str(ElPrice_SolarPwrPlant)]);
 disp(['Electric energy price Electrolyser (EUR/MWh):  ', num2str(ElPrice_Electrolyser)]);
@@ -1540,31 +1561,41 @@ disp(['Electric energy price TOTAL (EUR/MWh):         ', num2str(ElPrice_Total)]
 
 %% Display for table
 disp(' ');
-disp('TEST');
-disp(['Solar power plant (m2):                        ', num2str(PV_area)]);
-disp(['Battery Capacity (kWh):                        ', num2str(BattCapacity)]);
-disp(['Battery max charge power (kW):                 ', num2str(BattInpPowerMax)]);
-disp(['Battery max discharge power (kW): )]);         ', num2str(BattOutPowerMax)]);
-disp(['Hsys state-of-charge DIF (kWh):                ', num2str(max(HsysSoC)-min(HsysSoC))]);
-disp(['H2 tank capacity (kg):                         ', num2str((max(HsysSoC)-min(HsysSoC))/HHV_H2)]);
-disp(['Electrolyser power (kW):                       ', num2str(HsysInpPowerMax)]);
-disp(['Fuel cell power (kW):                          ', num2str(HsysOutPowerMax)]);
-disp(['Electric energy production price (EUR/MWh):    ', num2str(ElPrice_Total)]);
-disp(['PV energy (kWh):                     [+]       ', num2str(PvEnergy(end))]);
-disp(['Consumed energy (kWh):               [-]       ', num2str(ConsEnergy(end))]);
-disp(['Grid supply to (kWh):                [-]       ', num2str(GridInpEnergy(end))]);
-disp(['Grid consumption from (kWh):         [+]       ', num2str(GridOutEnergy(end))]);
-disp(['Hydrogen in the tank - start (kg):   [+]       ', num2str(H2_MassInTank(2))]);
-disp(['Hydrogen in the tank - end (kg):     [-]       ', num2str(H2_MassInTank(end))]);
-disp(['Electric energy price Sol. pwr. pl. (EUR/MWh): ', num2str(ElPrice_SolarPwrPlant)]);
-disp(['Electric energy price Electrolyser (EUR/MWh):  ', num2str(ElPrice_Electrolyser)]);
-disp(['Electric energy price Fuel cell (EUR/MWh):     ', num2str(ElPrice_FuelCell)]);
-disp(['Electric energy price Hydrogen tank (EUR/MWh): ', num2str(ElPrice_HydrogenTank)]);
-disp(['Electric energy price Battery (EUR/MWh):       ', num2str(ElPrice_Battery)]);
-disp(['Electric energy price TOTAL (EUR/MWh):         ', num2str(ElPrice_Total)]);
+disp('Table');
+disp([ num2str(PV_area)]); %'Solar power plant (m2):                        ',
+disp([ num2str(max(HsysSoC)-min(HsysSoC))]); %'Hsys state-of-charge DIF (kWh):                ',
+disp([ num2str((max(HsysSoC)-min(HsysSoC))/HHV_H2)]); % 'H2 tank capacity (kg):                         ',
+
+disp([num2str(BattCapacity)]); %'Battery Capacity (kWh):                        ', 
+disp([ num2str(BattInpPowerMax)]); %'Battery max charge power (kW):                 ',
+disp([num2str(BattOutPowerMax)]); %'Battery max discharge power (kW): )]);         ', 
+disp([ num2str(HsysInpPowerMax)]); %'Electrolyser power (kW):                       ',
+disp([ num2str(HsysOutPowerMax)]); %'Fuel cell power (kW):                          ',
+disp(' ');
+disp([ num2str(round(PvEnergy(end),1))]); %'PV energy (kWh):                     [+]       ',
+disp([ num2str(round(ConsEnergy(end),1))]); %'Consumed energy (kWh):               [-]       ',
+disp([ num2str(round(GridInpEnergy(end),1))]); %'Grid supply to (kWh):                [-]       ',
+disp([num2str(round(GridOutEnergy(end),1))]); %'Grid consumption from (kWh):         [+]       ', 
+disp([ num2str(round(HsysInpLossEnergy(end),1))]); %'Hsys electrolyser energy loss (kWh): [-]       ',
+disp([ num2str(round(HsysOutLossEnergy(end),1))]); %'Hsys fuel cell energy loss (kWh):    [-]       ',
+disp([ num2str(round(BattInpLossEnergy(end),1))]); %'Battery charge energy loss (kWh):    [-]       ',
+disp([num2str(round(BattOutLossEnergy(end),1))]); %'Battery discharge energy loss (kWh): [-]       ', 
+disp([num2str(round(H2_MassProduced(end),1))]); %'Hydrogen produced (kg):              [+]       ', 
+disp(' ');
+disp([ num2str(round(ElPrice_SolarPwrPlant,1))]); %'Electric energy price Sol. pwr. pl. (EUR/MWh): ',
+disp([ num2str(round(ElPrice_HydrogenTank,1))]); %'Electric energy price Hydrogen tank (EUR/MWh): ',
+disp([ num2str(round(ElPrice_Electrolyser,1))]); %'Electric energy price Electrolyser (EUR/MWh):  ',
+disp([ num2str(round(ElPrice_FuelCell,1))]); %'Electric energy price Fuel cell (EUR/MWh):     ',
+disp([ num2str(round(ElPrice_Battery,1))]); %'Electric energy price Battery (EUR/MWh):       ',
+disp([ num2str(round(ElPrice_Total,1))]); %'Electric energy price TOTAL (EUR/MWh):         ',
+disp(' ');
+disp([ num2str(round(local_consumption_kWh,1))]); % Local supply - Annual consumption:
+disp([ (num2str(round(final_Local_price_per_kWh*1000,1))) ]); % Local supply - Final price per kWh:
+disp([ num2str(round(YearPrice,1))]); % Local supply - Total supply cost:
 
 %% Display results
 % === Output results ===
+disp(' ');
 fprintf("Local supply - Annual consumption: %.0f kWh\n", local_consumption_kWh);
 fprintf("Local supply - Total supply cost:  %.4f EUR\n", YearPrice);
 fprintf("Local supply - Final price per kWh: %.4f EUR/kWh\n", final_Local_price_per_kWh);
